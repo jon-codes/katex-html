@@ -1,0 +1,13 @@
+{
+  "name": "katex-html",
+  "version": "0.0.0",
+  "description": "Render math expressions with KaTeX in HTML.",
+  "scripts": {},
+  "keywords": [
+    "katex",
+    "html",
+    "math"
+  ],
+  "author": "Jon Webb <jon@jonwebb.dev> (https://jonwebb.dev)",
+  "license": "MIT"
+}
