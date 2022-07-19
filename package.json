@@ -2,12 +2,24 @@
   "name": "katex-html",
   "version": "0.0.0",
   "description": "Render math expressions with KaTeX in HTML.",
-  "scripts": {},
   "keywords": [
     "katex",
     "html",
     "math"
   ],
   "author": "Jon Webb <jon@jonwebb.dev> (https://jonwebb.dev)",
-  "license": "MIT"
+  "license": "MIT",
+  "os": [
+    "!win32"
+  ],
+  "engines": {
+    "node": ">=16"
+  },
+  "scripts": {
+    "build": "rm -rf dist && npx tsc"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.6",
+    "typescript": "^4.7.4"
+  }
 }
