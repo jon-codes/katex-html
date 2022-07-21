@@ -5,40 +5,46 @@ import glob from "fast-glob";
 import katex from "katex";
 import * as htmlParser from "node-html-parser";
 
-type RenderMathOpts = {
-  ignorePattern?: string;
-  inlineMathPattern?: string;
-  displayMathPattern?: string;
+export type RenderMathOpts = {
+  ignoreRegExp?: RegExp;
+  inlineRegExp?: RegExp;
+  displayRegExp?: RegExp;
 };
 
 const defaultRenderMathOpts = {
-  ignorePattern: "(<code>[^]*?</code>|<pre>[^]*?</pre>)",
-  displayMathPattern: "(?:\\${2})([^]*?)(?:\\${2})",
-  inlineMathPattern: "(?:\\$)([^]*?)(?:\\$)",
+  ignoreRegExp: /(<code>[^]*?<\/code>|<pre>[^]*?<\/pre>)/gm,
+  displayRegExp: /(?:\${2})([^]*?)(?:\${2})/gm,
+  inlineRegExp: /(?:\$)([^]*?)(?:\$)/gm,
 };
 
-function renderMath(str: string, opts: RenderMathOpts) {
+export function renderMath(str: string, opts: RenderMathOpts) {
   const parsedOpts = { ...defaultRenderMathOpts, ...opts };
 
-  const ignoreRegExp = new RegExp(parsedOpts.ignorePattern, "g");
-  const displayMathRegExp = new RegExp(parsedOpts.displayMathPattern, "g");
-  const inlineMathRegExp = new RegExp(parsedOpts.inlineMathPattern, "g");
+  let matches = 0;
 
-  return str
-    .split(ignoreRegExp)
+  const rendered = str
+    .split(parsedOpts.ignoreRegExp)
     .map((subStr) => {
-      if (!subStr.match(ignoreRegExp)) {
-        for (const regExp of [displayMathRegExp, inlineMathRegExp]) {
+      if (!subStr.match(parsedOpts.ignoreRegExp)) {
+        for (const regExp of [
+          parsedOpts.displayRegExp,
+          parsedOpts.inlineRegExp,
+        ]) {
           subStr = subStr.replace(regExp, (_, p1) => {
+            matches += 1;
             return katex.renderToString(p1);
           });
         }
       }
+
+      return subStr;
     })
     .join("");
+
+  return { rendered, matches };
 }
 
-type ParseHtmlOpts = RenderMathOpts & {
+export type ParseHtmlOpts = RenderMathOpts & {
   querySelector?: string;
 };
 
@@ -47,27 +53,31 @@ const defaultParseHtmlOpts = {
   querySelector: "h1, h2, h3, h4, h5, h6, p, ul, ol, blockquote, table, dl",
 };
 
-function parseHtml(html: string, opts: ParseHtmlOpts = {}) {
+export function parseHtml(html: string, opts: ParseHtmlOpts = {}) {
   const parsedOpts = { ...defaultParseHtmlOpts, ...opts };
+
+  let totalMatches = 0;
 
   const root = htmlParser.parse(html);
   const elements = root.querySelectorAll(parsedOpts.querySelector);
 
   for (const el of elements) {
     const innerHtml = el.innerHTML;
-    const newInnerHtml = renderMath(innerHtml, { ...parsedOpts });
+    const { rendered, matches } = renderMath(innerHtml, { ...parsedOpts });
 
-    if (innerHtml !== newInnerHtml) {
-      el.innerHTML = newInnerHtml;
+    if (matches > 0) {
+      totalMatches += matches;
+      el.innerHTML = rendered;
     }
   }
 
-  return root.toString();
+  return { html: root.toString(), matches: totalMatches };
 }
 
-type ParseHtmlFilesOpts = ParseHtmlOpts & {
+export type ParseHtmlFilesOpts = ParseHtmlOpts & {
   encoding?: EncodingOption;
   fastGlobOpts?: glob.Options;
+  log?: boolean;
 };
 
 const defaultParseHtmlFilesOpts: ParseHtmlFilesOpts = {
@@ -75,24 +85,31 @@ const defaultParseHtmlFilesOpts: ParseHtmlFilesOpts = {
   ...defaultParseHtmlOpts,
   encoding: "utf-8" as EncodingOption,
   fastGlobOpts: {},
+  log: false,
 };
 
-async function parseHtmlFiles(
-  patterns: string | string[],
+export async function parseHtmlFiles(
+  sources: string | string[] = ["**/*.html", "!node_modules/**"],
   opts: ParseHtmlFilesOpts = {}
 ) {
   const parsedOpts = { ...defaultParseHtmlFilesOpts, ...opts };
 
-  const stream = glob.stream(patterns, parsedOpts.fastGlobOpts);
+  const stream = glob.stream(sources, parsedOpts.fastGlobOpts);
+
+  if (parsedOpts.log) {
+    console.log(`rendering KaTeX math expressions in ${sources}`);
+  }
 
   for await (const entry of stream) {
     const html = (await fs.readFile(entry, parsedOpts.encoding)).toString();
-    const parsedHtml = parseHtml(html, { ...parsedOpts });
+    const { html: parsedHtml, matches } = parseHtml(html, { ...parsedOpts });
 
-    if (html !== parsedHtml) {
+    if (matches > 0) {
       await fs.writeFile(entry, parsedHtml, parsedOpts.encoding);
+
+      if (parsedOpts.log) {
+        console.log(`rendered ${matches} expression(s) in ${entry}`);
+      }
     }
   }
 }
-
-export { renderMath, parseHtml, parseHtmlFiles };
