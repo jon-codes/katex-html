@@ -94,10 +94,12 @@ export async function parseHtmlFiles(
 ) {
   const parsedOpts = { ...defaultParseHtmlFilesOpts, ...opts };
 
+  let modified = 0;
+
   const stream = glob.stream(sources, parsedOpts.fastGlobOpts);
 
   if (parsedOpts.log) {
-    console.log(`rendering KaTeX math expressions in ${sources}`);
+    console.log(`rendering KaTeX math expressions in ${sources} ...`);
   }
 
   for await (const entry of stream) {
@@ -106,10 +108,15 @@ export async function parseHtmlFiles(
 
     if (matches > 0) {
       await fs.writeFile(entry, parsedHtml, parsedOpts.encoding);
+      modified += 1;
 
       if (parsedOpts.log) {
-        console.log(`rendered ${matches} expression(s) in ${entry}`);
+        console.log(`* rendered ${matches} expression(s) in ${entry}`);
       }
     }
+  }
+
+  if (parsedOpts.log) {
+    console.log(`done modifying ${modified} file(s)!`);
   }
 }
